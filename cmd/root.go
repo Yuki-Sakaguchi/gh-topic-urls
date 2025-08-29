@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -13,25 +14,41 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "topic-urls",
-	Short: "GitHub Topic Urls",
-	RunE:  runTopicUrls,
+	Use:           "topic-urls",
+	Short:         "GitHub Topic Urls",
+	RunE:          runTopicUrls,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 func runTopicUrls(cmd *cobra.Command, args []string) error {
-	fmt.Println(args)
-	if len(args) < 1 {
-		fmt.Println("How to use: gh-topic-urls <branch-name>")
-		os.Exit(1)
-	}
-
-	branchName := args[0]
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	var branchName string
+	if len(args) < 1 {
+		currentBranch, err := getCurrentBranch(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get current branch: %w\nUsage: gh-topic-urls [branch-name]", err)
+		}
+		branchName = currentBranch
+		fmt.Printf("Using current branch: %s\n", branchName)
+	} else {
+		branchName = args[0]
+		fmt.Printf("Target branch: %s\n", branchName)
+		
+		// Check if specified branch exists
+		exists, err := branchExists(ctx, branchName)
+		if err != nil {
+			return fmt.Errorf("failed to check branch existence: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("branch '%s' does not exist", branchName)
+		}
+	}
+
 	if err := getTopicUrls(ctx, branchName); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to get pull requests: %w", err)
 	}
 
 	return nil
@@ -39,13 +56,87 @@ func runTopicUrls(cmd *cobra.Command, args []string) error {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
 }
 
+func getCurrentRepo(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	remoteURL := strings.TrimSpace(output.String())
+
+	// Handle SSH URL format: git@github.com:owner/repo.git
+	if strings.HasPrefix(remoteURL, "git@") {
+		parts := strings.Split(remoteURL, ":")
+		if len(parts) >= 2 {
+			repoPath := parts[len(parts)-1]
+			repoPath = strings.TrimSuffix(repoPath, ".git")
+			return repoPath, nil
+		}
+	}
+
+	// Handle HTTPS URL format: https://github.com/owner/repo.git
+	if strings.HasPrefix(remoteURL, "https://") {
+		parts := strings.Split(remoteURL, "/")
+		if len(parts) >= 3 {
+			owner := parts[len(parts)-2]
+			repo := strings.TrimSuffix(parts[len(parts)-1], ".git")
+			return fmt.Sprintf("%s/%s", owner, repo), nil
+		}
+	}
+
+	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)
+}
+
+func getCurrentBranch(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "branch", "--show-current")
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	branch := strings.TrimSpace(output.String())
+	if branch == "" {
+		return "", fmt.Errorf("could not determine current branch")
+	}
+
+	return branch, nil
+}
+
+func branchExists(ctx context.Context, branchName string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branchName))
+	cmd.Stderr = nil // Suppress error output for cleaner check
+
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+
+	// Check if it's a remote branch
+	cmd = exec.CommandContext(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/remotes/origin/%s", branchName))
+	cmd.Stderr = nil
+
+	err = cmd.Run()
+	return err == nil, nil
+}
+
 func getTopicUrls(ctx context.Context, branchName string) error {
-	apiURL := fmt.Sprintf("/repos/yesodco/yesod/pulls?state=all&base=%s&sort=created-asc", branchName)
+	repo, err := getCurrentRepo(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get current repository: %w", err)
+	}
+
+	apiURL := fmt.Sprintf("/repos/%s/pulls?state=all&base=%s&sort=created-asc", repo, branchName)
 
 	ghCmd := exec.CommandContext(ctx, "gh", "api",
 		"-H", "Accept: application/vnd.github+json",
@@ -81,7 +172,14 @@ func getTopicUrls(ctx context.Context, branchName string) error {
 	if err := jqCmd.Wait(); err != nil {
 		return fmt.Errorf("jq wait error: %w", err)
 	}
+	
 	urls := jqOutput.String()
+	urlsTrimmed := strings.TrimSpace(urls)
+	if urlsTrimmed == "" {
+		fmt.Printf("No pull requests found for branch '%s'\n", branchName)
+		return nil
+	}
+	
 	fmt.Print(urls)
 
 	if err := clipboard.WriteAll(urls); err != nil {
