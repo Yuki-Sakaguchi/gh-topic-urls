@@ -14,9 +14,11 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "topic-urls",
-	Short: "GitHub Topic Urls",
-	RunE:  runTopicUrls,
+	Use:           "topic-urls",
+	Short:         "GitHub Topic Urls",
+	RunE:          runTopicUrls,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 func runTopicUrls(cmd *cobra.Command, args []string) error {
@@ -27,20 +29,26 @@ func runTopicUrls(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		currentBranch, err := getCurrentBranch(ctx)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting current branch: %v\n", err)
-			fmt.Println("How to use: gh-topic-urls [branch-name]")
-			os.Exit(1)
+			return fmt.Errorf("failed to get current branch: %w\nUsage: gh-topic-urls [branch-name]", err)
 		}
 		branchName = currentBranch
 		fmt.Printf("Using current branch: %s\n", branchName)
 	} else {
 		branchName = args[0]
 		fmt.Printf("Target branch: %s\n", branchName)
+		
+		// Check if specified branch exists
+		exists, err := branchExists(ctx, branchName)
+		if err != nil {
+			return fmt.Errorf("failed to check branch existence: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("branch '%s' does not exist", branchName)
+		}
 	}
 
 	if err := getTopicUrls(ctx, branchName); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to get pull requests: %w", err)
 	}
 
 	return nil
@@ -48,8 +56,7 @@ func runTopicUrls(cmd *cobra.Command, args []string) error {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
 }
 
@@ -104,6 +111,23 @@ func getCurrentBranch(ctx context.Context) (string, error) {
 	}
 
 	return branch, nil
+}
+
+func branchExists(ctx context.Context, branchName string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branchName))
+	cmd.Stderr = nil // Suppress error output for cleaner check
+
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+
+	// Check if it's a remote branch
+	cmd = exec.CommandContext(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/remotes/origin/%s", branchName))
+	cmd.Stderr = nil
+
+	err = cmd.Run()
+	return err == nil, nil
 }
 
 func getTopicUrls(ctx context.Context, branchName string) error {
