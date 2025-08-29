@@ -172,7 +172,14 @@ func getTopicUrls(ctx context.Context, branchName string) error {
 	if err := jqCmd.Wait(); err != nil {
 		return fmt.Errorf("jq wait error: %w", err)
 	}
+	
 	urls := jqOutput.String()
+	urlsTrimmed := strings.TrimSpace(urls)
+	if urlsTrimmed == "" {
+		fmt.Printf("No pull requests found for branch '%s'\n", branchName)
+		return nil
+	}
+	
 	fmt.Print(urls)
 
 	if err := clipboard.WriteAll(urls); err != nil {
