@@ -20,15 +20,23 @@ var rootCmd = &cobra.Command{
 }
 
 func runTopicUrls(cmd *cobra.Command, args []string) error {
-	fmt.Println(args)
-	if len(args) < 1 {
-		fmt.Println("How to use: gh-topic-urls <branch-name>")
-		os.Exit(1)
-	}
-
-	branchName := args[0]
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	var branchName string
+	if len(args) < 1 {
+		currentBranch, err := getCurrentBranch(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting current branch: %v\n", err)
+			fmt.Println("How to use: gh-topic-urls [branch-name]")
+			os.Exit(1)
+		}
+		branchName = currentBranch
+		fmt.Printf("Using current branch: %s\n", branchName)
+	} else {
+		branchName = args[0]
+		fmt.Printf("Target branch: %s\n", branchName)
+	}
 
 	if err := getTopicUrls(ctx, branchName); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -56,7 +64,7 @@ func getCurrentRepo(ctx context.Context) (string, error) {
 	}
 
 	remoteURL := strings.TrimSpace(output.String())
-	
+
 	// Handle SSH URL format: git@github.com:owner/repo.git
 	if strings.HasPrefix(remoteURL, "git@") {
 		parts := strings.Split(remoteURL, ":")
@@ -66,7 +74,7 @@ func getCurrentRepo(ctx context.Context) (string, error) {
 			return repoPath, nil
 		}
 	}
-	
+
 	// Handle HTTPS URL format: https://github.com/owner/repo.git
 	if strings.HasPrefix(remoteURL, "https://") {
 		parts := strings.Split(remoteURL, "/")
@@ -76,8 +84,26 @@ func getCurrentRepo(ctx context.Context) (string, error) {
 			return fmt.Sprintf("%s/%s", owner, repo), nil
 		}
 	}
-	
+
 	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)
+}
+
+func getCurrentBranch(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "branch", "--show-current")
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	branch := strings.TrimSpace(output.String())
+	if branch == "" {
+		return "", fmt.Errorf("could not determine current branch")
+	}
+
+	return branch, nil
 }
 
 func getTopicUrls(ctx context.Context, branchName string) error {
@@ -85,7 +111,7 @@ func getTopicUrls(ctx context.Context, branchName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get current repository: %w", err)
 	}
-	
+
 	apiURL := fmt.Sprintf("/repos/%s/pulls?state=all&base=%s&sort=created-asc", repo, branchName)
 
 	ghCmd := exec.CommandContext(ctx, "gh", "api",
