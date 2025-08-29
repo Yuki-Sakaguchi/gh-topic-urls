@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -44,8 +45,48 @@ func Execute() {
 	}
 }
 
+func getCurrentRepo(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	remoteURL := strings.TrimSpace(output.String())
+	
+	// Handle SSH URL format: git@github.com:owner/repo.git
+	if strings.HasPrefix(remoteURL, "git@") {
+		parts := strings.Split(remoteURL, ":")
+		if len(parts) >= 2 {
+			repoPath := parts[len(parts)-1]
+			repoPath = strings.TrimSuffix(repoPath, ".git")
+			return repoPath, nil
+		}
+	}
+	
+	// Handle HTTPS URL format: https://github.com/owner/repo.git
+	if strings.HasPrefix(remoteURL, "https://") {
+		parts := strings.Split(remoteURL, "/")
+		if len(parts) >= 3 {
+			owner := parts[len(parts)-2]
+			repo := strings.TrimSuffix(parts[len(parts)-1], ".git")
+			return fmt.Sprintf("%s/%s", owner, repo), nil
+		}
+	}
+	
+	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)
+}
+
 func getTopicUrls(ctx context.Context, branchName string) error {
-	apiURL := fmt.Sprintf("/repos/yesodco/yesod/pulls?state=all&base=%s&sort=created-asc", branchName)
+	repo, err := getCurrentRepo(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get current repository: %w", err)
+	}
+	
+	apiURL := fmt.Sprintf("/repos/%s/pulls?state=all&base=%s&sort=created-asc", repo, branchName)
 
 	ghCmd := exec.CommandContext(ctx, "gh", "api",
 		"-H", "Accept: application/vnd.github+json",
