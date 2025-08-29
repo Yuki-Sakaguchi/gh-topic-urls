@@ -4,10 +4,13 @@ A CLI tool to fetch GitHub Pull Request URLs for a specific branch and copy them
 
 ## Features
 
-- Fetch all Pull Requests for a given branch using GitHub CLI
-- Format URLs as Markdown list items
-- Automatically copy results to clipboard
-- Support for timeout handling (30 seconds)
+- **Dynamic repository detection** - Automatically detects the current Git repository
+- **Smart branch handling** - Uses current branch when no argument is provided
+- **Branch validation** - Verifies branch existence before processing
+- **User-friendly error messages** - Clear English error messages
+- **Conditional clipboard copy** - Only copies to clipboard when PRs are found
+- **Markdown formatting** - Formats URLs as Markdown list items
+- **Timeout handling** - 30-second timeout for API requests
 
 ## Prerequisites
 
@@ -31,12 +34,19 @@ go build -o gh-topic-urls
 ## Usage
 
 ```bash
+# Use current branch (recommended)
+gh-topic-urls
+
+# Specify a branch
 gh-topic-urls <branch-name>
 ```
 
-### Example
+### Examples
 
 ```bash
+# Fetch PRs for the current branch
+gh-topic-urls
+
 # Fetch PRs for the 'main' branch
 gh-topic-urls main
 
@@ -44,18 +54,35 @@ gh-topic-urls main
 gh-topic-urls feature/new-feature
 ```
 
-The tool will:
-1. Query GitHub API for all Pull Requests targeting the specified branch
-2. Format the URLs as a Markdown list
-3. Display the results in the terminal
-4. Copy the formatted list to your clipboard
+### How it works
 
-### Output Format
+1. **Auto-detects repository** from your current Git remote
+2. **Validates branch existence** (when specified)
+3. **Queries GitHub API** for all Pull Requests targeting the branch
+4. **Formats URLs** as a Markdown list
+5. **Displays results** in the terminal
+6. **Copies to clipboard** (only if PRs are found)
 
-```markdown
-- https://github.com/yesodco/yesod/pull/123
-- https://github.com/yesodco/yesod/pull/124
-- https://github.com/yesodco/yesod/pull/125
+### Output Examples
+
+**When PRs are found:**
+```
+Using current branch: main
+- https://github.com/your-org/your-repo/pull/123
+- https://github.com/your-org/your-repo/pull/124
+✨ Copied to clipboard
+```
+
+**When no PRs exist:**
+```
+Target branch: feature/empty-branch
+No pull requests found for branch 'feature/empty-branch'
+```
+
+**When branch doesn't exist:**
+```
+Target branch: nonexistent
+branch 'nonexistent' does not exist
 ```
 
 ## Dependencies
