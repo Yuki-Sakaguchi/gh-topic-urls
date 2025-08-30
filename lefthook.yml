@@ -1,0 +1,21 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      run: gofmt -w .
+      stage_fixed: true
+      glob: "*.go"
+    vet:
+      run: go vet ./...
+      glob: "*.go"
+    test:
+      run: go test ./...
+      glob: "*.go"
+    build:
+      run: go build
+      glob: "*.go"
+
+prepare-commit-msg:
+  commands:
+    prefix:
+      run: ./scripts/add-branch-prefix.sh {1}
