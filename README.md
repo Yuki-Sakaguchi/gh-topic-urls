@@ -20,38 +20,30 @@ A CLI tool to fetch GitHub Pull Request URLs for a specific branch and copy them
 ## Installation
 
 ```bash
-go install github.com/Yuki-Sakaguchi/gh-topic-urls@latest
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/Yuki-Sakaguchi/gh-topic-urls.git
-cd gh-topic-urls
-go build -o gh-topic-urls
+gh extension install Yuki-Sakaguchi/gh-topic-urls
 ```
 
 ## Usage
 
 ```bash
 # Use current branch (recommended)
-gh-topic-urls
+gh topic-urls
 
 # Specify a branch
-gh-topic-urls <branch-name>
+gh topic-urls <branch-name>
 ```
 
 ### Examples
 
 ```bash
 # Fetch PRs for the current branch
-gh-topic-urls
+gh topic-urls
 
 # Fetch PRs for the 'main' branch
-gh-topic-urls main
+gh topic-urls main
 
 # Fetch PRs for a feature branch
-gh-topic-urls feature/new-feature
+gh topic-urls feature/new-feature
 ```
 
 ### How it works
