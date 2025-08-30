@@ -2,6 +2,9 @@
 
 A CLI tool to fetch GitHub Pull Request URLs for a specific branch and copy them to the clipboard in Markdown list format.
 
+![result](https://github.com/user-attachments/assets/5e64d4e8-eec8-43fa-a1be-a654a158b66a)
+
+
 ## Features
 
 - **Dynamic repository detection** - Automatically detects the current Git repository
