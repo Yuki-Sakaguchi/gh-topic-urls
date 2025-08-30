@@ -91,8 +91,8 @@ func parseRepoFromURL(remoteURL string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)}
-
+	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)
+}
 
 func getCurrentRepo(ctx context.Context) (string, error) {
 	cmd := execCommand(ctx, "git", "remote", "get-url", "origin")

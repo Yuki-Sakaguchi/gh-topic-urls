@@ -105,11 +105,11 @@ func mockExecCommand(mockOutput string, mockError error) func(context.Context, s
 
 func TestGetCurrentRepo(t *testing.T) {
 	tests := []struct {
-		name         string
-		mockOutput   string
-		mockError    error
-		expected     string
-		expectError  bool
+		name        string
+		mockOutput  string
+		mockError   error
+		expected    string
+		expectError bool
 	}{
 		{
 			name:       "SSH URL with .git",
@@ -162,11 +162,11 @@ func TestGetCurrentRepo(t *testing.T) {
 
 func TestGetCurrentBranch(t *testing.T) {
 	tests := []struct {
-		name         string
-		mockOutput   string
-		mockError    error
-		expected     string
-		expectError  bool
+		name        string
+		mockOutput  string
+		mockError   error
+		expected    string
+		expectError bool
 	}{
 		{
 			name:       "Normal branch name",
@@ -229,11 +229,11 @@ func TestGetCurrentBranch(t *testing.T) {
 
 func TestBranchExists(t *testing.T) {
 	tests := []struct {
-		name         string
-		branchName   string
-		mockError    error
-		expected     bool
-		expectError  bool
+		name        string
+		branchName  string
+		mockError   error
+		expected    bool
+		expectError bool
 	}{
 		{
 			name:       "Local branch exists",
