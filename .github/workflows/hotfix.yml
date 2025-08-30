@@ -1,0 +1,243 @@
+name: Hotfix Workflow
+
+on:
+  push:
+    branches:
+      - 'hotfix/*'
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+    # Only run if the source branch is a hotfix branch
+    paths-ignore:
+      - '!hotfix/*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate-hotfix:
+    name: Validate Hotfix
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'hotfix/') || startsWith(github.ref_name, 'hotfix/')
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+            
+      - name: Download dependencies
+        run: go mod download
+        
+      - name: Run tests
+        run: go test -v ./... -race
+        
+      - name: Verify build
+        run: go build -v .
+        
+      - name: Run critical security checks
+        run: |
+          # Quick security scan for hotfixes
+          go vet ./...
+          
+  auto-create-hotfix-pr:
+    name: Auto-create Hotfix PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'hotfix/')
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Extract hotfix information
+        id: hotfix_info
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          HOTFIX_DESC=$(echo "$BRANCH_NAME" | sed 's/hotfix\///' | sed 's/-/ /g')
+          ISSUE_NUM=$(echo "$BRANCH_NAME" | grep -o '[0-9]\+' | head -n1 || echo "")
+          
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "description=$HOTFIX_DESC" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+          
+      - name: Get recent commits
+        id: commits
+        run: |
+          # Get commits in this hotfix branch
+          COMMITS=$(git log --oneline main..HEAD)
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: Create hotfix PR
+        run: |
+          BRANCH_NAME="${{ steps.hotfix_info.outputs.branch }}"
+          DESCRIPTION="${{ steps.hotfix_info.outputs.description }}"
+          ISSUE_NUM="${{ steps.hotfix_info.outputs.issue_number }}"
+          COMMITS="${{ steps.commits.outputs.commits }}"
+          
+          # Create PR title
+          if [ -n "$ISSUE_NUM" ]; then
+            PR_TITLE="hotfix: $DESCRIPTION (#$ISSUE_NUM)"
+            CLOSES_LINE="Closes #$ISSUE_NUM"
+          else
+            PR_TITLE="hotfix: $DESCRIPTION"
+            CLOSES_LINE=""
+          fi
+          
+          # Create PR body
+          PR_BODY="$(cat <<EOF
+          ## 🚨 Hotfix: $DESCRIPTION
+          
+          $CLOSES_LINE
+          
+          ### Emergency Fix Details
+          This is a critical hotfix that bypasses the normal release accumulation process.
+          
+          ### Changes
+          $COMMITS
+          
+          ### Urgency Justification
+          - [ ] **Production issue**: Critical bug affecting users
+          - [ ] **Security vulnerability**: Security patch required immediately  
+          - [ ] **Data integrity**: Risk of data loss or corruption
+          - [ ] **Service availability**: Application downtime or unavailability
+          
+          ### Verification Checklist
+          - [ ] Hotfix addresses the specific issue without side effects
+          - [ ] Tests pass and cover the fix scenario
+          - [ ] No breaking changes introduced
+          - [ ] Minimal scope - only fixes the critical issue
+          
+          ### Post-merge Actions
+          After this PR is merged:
+          1. Automatic patch release will be triggered
+          2. Updated binaries will be built and released
+          3. Release notes will be generated
+          4. release/next branch will be synced with main
+          
+          ⚠️ **Review Priority**: High - Please review and merge ASAP
+          
+          🤖 Auto-created from hotfix branch push
+          EOF
+          )"
+          
+          # Create the PR
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --label "hotfix" \
+            --label "priority-high" \
+            --label "ready-for-review"
+            
+          echo "✅ Hotfix PR created: $PR_TITLE"
+
+  hotfix-release:
+    name: Execute Hotfix Release
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.pull_request.merged == true && 
+      startsWith(github.head_ref, 'hotfix/') &&
+      github.base_ref == 'main'
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          
+      - name: Calculate hotfix version
+        id: version
+        run: |
+          # Get current version
+          if [ -f VERSION ]; then
+            CURRENT_VERSION=$(cat VERSION)
+          else
+            CURRENT_VERSION="0.0.0"
+          fi
+          
+          # Hotfixes are always patch releases
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Hotfix version: $NEW_VERSION"
+          
+      - name: Update VERSION file
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          echo "$NEW_VERSION" > VERSION
+          
+      - name: Update CHANGELOG
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          
+          # Install conventional-changelog if not exists
+          npm install -g conventional-changelog-cli
+          
+          # Update CHANGELOG.md
+          conventional-changelog -p conventionalcommits -r 0 -s
+          
+      - name: Commit and tag release
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add VERSION CHANGELOG.md
+          git commit -m "chore: hotfix release v${NEW_VERSION}" || echo "No changes to commit"
+          
+          git tag -a "v${NEW_VERSION}" -m "Hotfix Release v${NEW_VERSION}"
+          git push origin "v${NEW_VERSION}"
+          git push origin main
+          
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Sync release branch
+        run: |
+          # Ensure release/next is in sync with main after hotfix
+          git checkout release/next || git checkout -b release/next
+          git reset --hard main
+          git push origin release/next --force-with-lease
+          
+      - name: Notify hotfix completion
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/v${NEW_VERSION}"
+          
+          echo "🚨 Hotfix v${NEW_VERSION} released successfully!"
+          echo "Release URL: ${RELEASE_URL}"

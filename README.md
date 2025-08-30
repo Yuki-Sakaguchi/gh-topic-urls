@@ -22,8 +22,19 @@ A CLI tool to fetch GitHub Pull Request URLs for a specific branch and copy them
 
 ## Installation
 
+### Using GitHub CLI (Recommended)
 ```bash
 gh extension install Yuki-Sakaguchi/gh-topic-urls
+```
+
+### Download Binary
+Download the latest binary from [Releases](https://github.com/Yuki-Sakaguchi/gh-topic-urls/releases) page.
+
+### Build from Source
+```bash
+git clone https://github.com/Yuki-Sakaguchi/gh-topic-urls.git
+cd gh-topic-urls
+go build -o gh-topic-urls .
 ```
 
 ## Usage
@@ -79,6 +90,37 @@ No pull requests found for branch 'feature/empty-branch'
 Target branch: nonexistent
 branch 'nonexistent' does not exist
 ```
+
+## Development
+
+### CI/CD Pipeline
+
+This project uses a comprehensive CI/CD pipeline with automated semantic versioning and release management.
+
+#### Branch Strategy
+- **Main branch**: Always contains released code
+- **Release branch** (`release/next`): Accumulates unreleased changes
+- **Feature branches**: Target `release/next` for normal development
+- **Hotfix branches**: Target `main` for emergency fixes
+
+#### Automated Workflows
+- **PR Validation**: Runs tests, linting, and build verification on PRs to `release/next`
+- **Release Preparation**: Weekly automated or manual release preparation
+- **Automated Release**: Builds and releases when release PRs are merged to main
+- **Hotfix Support**: Emergency release process for critical fixes
+
+#### Git Hooks
+This project includes Git hooks powered by [Lefthook](https://github.com/evilmartians/lefthook):
+- Pre-commit: Code formatting, linting, testing, and build verification
+- Commit message: Automatic prefixing and validation
+- See [HOOKS.md](docs/HOOKS.md) for detailed setup instructions
+
+### Contributing
+
+1. Create feature branch from `release/next`
+2. Make changes following conventional commit format
+3. Submit PR targeting `release/next`
+4. CI will validate your changes automatically
 
 ## Dependencies
 
