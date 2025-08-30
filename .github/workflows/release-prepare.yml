@@ -1,0 +1,189 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type (auto, major, minor, patch)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+  schedule:
+    - cron: '0 10 * * FRI'  # Weekly Friday releases at 10:00 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-release:
+    name: Prepare Release PR
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          
+      - name: Install conventional-changelog
+        run: npm install -g conventional-changelog-cli
+        
+      - name: Get current version
+        id: current_version
+        run: |
+          if [ -f VERSION ]; then
+            CURRENT_VERSION=$(cat VERSION)
+          else
+            CURRENT_VERSION="0.0.0"
+          fi
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Calculate next version
+        id: next_version
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Get commit messages since last tag
+          COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+          echo "Commits since last tag:"
+          echo "$COMMITS"
+          
+          # Parse current version
+          CURRENT_VERSION="${{ steps.current_version.outputs.current }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          
+          # Determine version bump type
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          if [ "$RELEASE_TYPE" = "auto" ] || [ -z "$RELEASE_TYPE" ]; then
+            # Auto-detect based on conventional commits
+            if echo "$COMMITS" | grep -q "BREAKING CHANGE\|!:"; then
+              BUMP_TYPE="major"
+            elif echo "$COMMITS" | grep -q "^feat"; then
+              BUMP_TYPE="minor"
+            elif echo "$COMMITS" | grep -q "^fix\|^perf"; then
+              BUMP_TYPE="patch"
+            else
+              BUMP_TYPE="patch"  # Default to patch for any changes
+            fi
+          else
+            BUMP_TYPE="$RELEASE_TYPE"
+          fi
+          
+          # Calculate new version
+          case "$BUMP_TYPE" in
+            major)
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+            minor)
+              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              ;;
+            patch)
+              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              ;;
+          esac
+          
+          echo "Version bump type: $BUMP_TYPE"
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          
+      - name: Check for unreleased changes
+        id: check_changes
+        run: |
+          # Check if there are commits since last tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "No previous tags found, assuming changes exist"
+          else
+            CHANGES=$(git log ${LATEST_TAG}..HEAD --oneline)
+            if [ -z "$CHANGES" ]; then
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "No changes since last release"
+            else
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+              echo "Found changes since last release:"
+              echo "$CHANGES"
+            fi
+          fi
+          
+      - name: Generate changelog preview
+        id: changelog
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          # Get the latest tag for changelog generation
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # No previous tags, generate full changelog
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --reverse)
+          else
+            # Generate changelog since last tag
+            CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s (%h)" --reverse)
+          fi
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
+          
+          # Save changelog to file for PR description
+          echo "$CHANGELOG" > changelog_preview.txt
+          
+      - name: Create release PR
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          NEW_VERSION="${{ steps.next_version.outputs.version }}"
+          BUMP_TYPE="${{ steps.next_version.outputs.bump_type }}"
+          
+          # Create PR body
+          PR_BODY="$(cat <<EOF
+          ## Release v${NEW_VERSION}
+          
+          This PR prepares release v${NEW_VERSION} (${BUMP_TYPE} version bump).
+          
+          ### Changes in this release:
+          $(cat changelog_preview.txt)
+          
+          ### Version Information
+          - **Previous version**: ${{ steps.current_version.outputs.current }}
+          - **New version**: ${NEW_VERSION}
+          - **Bump type**: ${BUMP_TYPE}
+          
+          ### Release Process
+          Once this PR is merged into main:
+          1. Semantic version tag will be created automatically
+          2. Cross-platform binaries will be built with GoReleaser
+          3. GitHub release will be created with auto-generated notes
+          4. CHANGELOG.md will be updated
+          5. release/next branch will be reset to main
+          
+          🤖 Generated automatically by release preparation workflow
+          EOF
+          )"
+          
+          # Create the PR
+          gh pr create \
+            --title "Release v${NEW_VERSION}" \
+            --body "$PR_BODY" \
+            --base main \
+            --head release/next \
+            --label "release" \
+            --label "ready-for-review"
+            
+      - name: Skip release (no changes)
+        if: steps.check_changes.outputs.has_changes == 'false'
+        run: |
+          echo "No changes detected since last release. Skipping release preparation."
+          echo "To force a release, use workflow_dispatch with manual trigger."

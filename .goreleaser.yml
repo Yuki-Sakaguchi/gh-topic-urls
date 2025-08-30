@@ -1,0 +1,147 @@
+project_name: gh-topic-urls
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: gh-topic-urls
+    main: ./main.go
+    binary: gh-topic-urls
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+
+archives:
+  - id: gh-topic-urls-archive
+    builds:
+      - gh-topic-urls
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^style:"
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Performance Improvements
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: Refactoring
+      regexp: "^.*refactor[(\\w)]*:+.*$"
+      order: 3
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: Yuki-Sakaguchi
+    name: gh-topic-urls
+  draft: false
+  prerelease: auto
+  mode: replace
+  name_template: "Release v{{.Version}}"
+  header: |
+    ## GitHub Topic URLs v{{.Version}}
+    
+    A GitHub CLI extension to retrieve pull request URLs filtered by branch name.
+    
+    ### Installation
+    ```bash
+    # Install or upgrade using GitHub CLI
+    gh extension install Yuki-Sakaguchi/gh-topic-urls
+    
+    # Or download binary from assets below
+    ```
+  footer: |
+    ### Usage
+    ```bash
+    # Get PRs for current branch
+    gh topic-urls
+    
+    # Get PRs for specific branch
+    gh topic-urls main
+    ```
+    
+    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY }}/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# GitHub CLI extension specific configuration
+brews:
+  - name: gh-topic-urls
+    repository:
+      owner: Yuki-Sakaguchi
+      name: homebrew-gh-topic-urls
+    description: "GitHub CLI extension to retrieve PR URLs by branch"
+    homepage: "https://github.com/Yuki-Sakaguchi/gh-topic-urls"
+    license: "MIT"
+    skip_upload: auto
+    dependencies:
+      - name: gh
+        type: runtime
+
+# Create universal binaries for macOS
+universal_binaries:
+  - replace: true
+    name_template: "{{ .ProjectName }}"
+    id: gh-topic-urls
+
+# Docker image (optional)
+dockers:
+  - image_templates:
+      - "ghcr.io/yuki-sakaguchi/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "ghcr.io/yuki-sakaguchi/{{ .ProjectName }}:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+
+# Validation
+dist: dist
+
+# Metadata
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
+
+# Signing (optional)
+signs:
+  - artifacts: checksum
