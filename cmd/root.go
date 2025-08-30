@@ -13,9 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// テスト用の依存性注入変数
-var execCommand = exec.CommandContext
-
 var rootCmd = &cobra.Command{
 	Use:           "topic-urls",
 	Short:         "GitHub Topic Urls",
@@ -63,39 +60,46 @@ func Execute() {
 	}
 }
 
-func getCurrentRepo(ctx context.Context) (string, error) {
-	cmd := execCommand(ctx, "git", "remote", "get-url", "origin")
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("failed to get remote URL: %w", err)
-	}
-
-	remoteURL := strings.TrimSpace(output.String())
-
+// parseRepoFromURL extracts owner/repo from Git remote URL
+func parseRepoFromURL(remoteURL string) (string, error) {
 	// Handle SSH URL format: git@github.com:owner/repo.git
 	if strings.HasPrefix(remoteURL, "git@") {
 		parts := strings.Split(remoteURL, ":")
 		if len(parts) >= 2 {
 			repoPath := parts[len(parts)-1]
 			repoPath = strings.TrimSuffix(repoPath, ".git")
-			return repoPath, nil
+			// Validate that repo path is not empty
+			if repoPath != "" {
+				return repoPath, nil
+			}
 		}
 	}
 
 	// Handle HTTPS URL format: https://github.com/owner/repo.git
 	if strings.HasPrefix(remoteURL, "https://") {
 		parts := strings.Split(remoteURL, "/")
-		if len(parts) >= 3 {
+		if len(parts) >= 5 {
 			owner := parts[len(parts)-2]
 			repo := strings.TrimSuffix(parts[len(parts)-1], ".git")
-			return fmt.Sprintf("%s/%s", owner, repo), nil
+			// Validate that owner and repo are not empty
+			if owner != "" && repo != "" {
+				return fmt.Sprintf("%s/%s", owner, repo), nil
+			}
 		}
 	}
 
 	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)
+}
+
+func getCurrentRepo(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	remoteURL := strings.TrimSpace(string(output))
+	return parseRepoFromURL(remoteURL)
 }
 
 func getCurrentBranch(ctx context.Context) (string, error) {

@@ -1,74 +1,79 @@
 package cmd
 
 import (
-	"context"
-	"errors"
-	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetCurrentRepo(t *testing.T) {
+func TestParseRepoFromURL(t *testing.T) {
 	tests := []struct {
 		name         string
-		mockOutput   string
-		mockError    error
+		remoteURL    string
 		expectedRepo string
 		expectError  bool
 	}{
 		{
-			name:         "SSH URL",
-			mockOutput:   "git@github.com:owner/repo.git\n",
-			expectedRepo: "owner/repo",
-		},
-		{
-			name:         "HTTPS URL", 
-			mockOutput:   "https://github.com/owner/repo.git\n",
+			name:         "SSH URL with .git",
+			remoteURL:    "git@github.com:owner/repo.git",
 			expectedRepo: "owner/repo",
 		},
 		{
 			name:         "SSH URL without .git",
-			mockOutput:   "git@github.com:owner/repo\n", 
+			remoteURL:    "git@github.com:owner/repo",
+			expectedRepo: "owner/repo",
+		},
+		{
+			name:         "HTTPS URL with .git",
+			remoteURL:    "https://github.com/owner/repo.git",
 			expectedRepo: "owner/repo",
 		},
 		{
 			name:         "HTTPS URL without .git",
-			mockOutput:   "https://github.com/owner/repo\n",
+			remoteURL:    "https://github.com/owner/repo",
 			expectedRepo: "owner/repo",
 		},
 		{
-			name:        "Git command error",
-			mockError:   errors.New("git command failed"),
-			expectError: true,
+			name:         "SSH URL with nested path",
+			remoteURL:    "git@github.com:organization/project-name.git",
+			expectedRepo: "organization/project-name",
+		},
+		{
+			name:         "HTTPS URL with nested path",
+			remoteURL:    "https://github.com/my-org/my-awesome-project.git",
+			expectedRepo: "my-org/my-awesome-project",
 		},
 		{
 			name:        "Unsupported URL format",
-			mockOutput:  "unsupported://example.com/repo\n",
+			remoteURL:   "ftp://example.com/repo.git",
 			expectError: true,
 		},
 		{
-			name:        "Empty output",
-			mockOutput:  "\n",
+			name:        "Empty URL",
+			remoteURL:   "",
+			expectError: true,
+		},
+		{
+			name:        "Invalid SSH format",
+			remoteURL:   "git@github.com",
+			expectError: true,
+		},
+		{
+			name:        "Invalid HTTPS format",
+			remoteURL:   "https://github.com/",
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Arrange: モックコマンドの準備
-			oldExecCommand := execCommand
-			defer func() { execCommand = oldExecCommand }()
-			
-			execCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return createMockCommand(tt.mockOutput, tt.mockError)
-			}
+			// Given: Remote URL
+			remoteURL := tt.remoteURL
 
-			// Act: テスト対象の実行
-			ctx := context.Background()
-			result, err := getCurrentRepo(ctx)
+			// When: Parse URL
+			result, err := parseRepoFromURL(remoteURL)
 
-			// Then: 結果の検証
+			// Then: Verify results
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Empty(t, result)
@@ -78,15 +83,4 @@ func TestGetCurrentRepo(t *testing.T) {
 			}
 		})
 	}
-}
-
-// テストヘルパー: モックコマンドを作成
-func createMockCommand(output string, mockError error) *exec.Cmd {
-	if mockError != nil {
-		// エラーを返すコマンド
-		return exec.Command("false")
-	}
-	
-	// 正常な出力を返すコマンド
-	return exec.Command("echo", "-n", output)
 }
