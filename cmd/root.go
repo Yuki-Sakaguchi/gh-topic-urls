@@ -13,6 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// テスト用の依存性注入変数
+var execCommand = exec.CommandContext
+
 var rootCmd = &cobra.Command{
 	Use:           "topic-urls",
 	Short:         "GitHub Topic Urls",
@@ -36,7 +39,7 @@ func runTopicUrls(cmd *cobra.Command, args []string) error {
 	} else {
 		branchName = args[0]
 		fmt.Printf("Target branch: %s\n", branchName)
-		
+
 		// Check if specified branch exists
 		exists, err := branchExists(ctx, branchName)
 		if err != nil {
@@ -61,7 +64,7 @@ func Execute() {
 }
 
 func getCurrentRepo(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	cmd := execCommand(ctx, "git", "remote", "get-url", "origin")
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = os.Stderr
@@ -172,14 +175,14 @@ func getTopicUrls(ctx context.Context, branchName string) error {
 	if err := jqCmd.Wait(); err != nil {
 		return fmt.Errorf("jq wait error: %w", err)
 	}
-	
+
 	urls := jqOutput.String()
 	urlsTrimmed := strings.TrimSpace(urls)
 	if urlsTrimmed == "" {
 		fmt.Printf("No pull requests found for branch '%s'\n", branchName)
 		return nil
 	}
-	
+
 	fmt.Print(urls)
 
 	if err := clipboard.WriteAll(urls); err != nil {
