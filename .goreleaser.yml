@@ -101,39 +101,11 @@ release:
     
     **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY }}/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-# GitHub CLI extension specific configuration
-brews:
-  - name: gh-topic-urls
-    repository:
-      owner: Yuki-Sakaguchi
-      name: homebrew-gh-topic-urls
-    description: "GitHub CLI extension to retrieve PR URLs by branch"
-    homepage: "https://github.com/Yuki-Sakaguchi/gh-topic-urls"
-    license: "MIT"
-    skip_upload: auto
-    dependencies:
-      - name: gh
-        type: runtime
-
 # Create universal binaries for macOS
 universal_binaries:
   - replace: true
     name_template: "{{ .ProjectName }}"
     id: gh-topic-urls
-
-# Docker image (optional)
-dockers:
-  - image_templates:
-      - "ghcr.io/yuki-sakaguchi/{{ .ProjectName }}:{{ .Version }}-amd64"
-      - "ghcr.io/yuki-sakaguchi/{{ .ProjectName }}:latest-amd64"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
 
 # Validation
 dist: dist
@@ -141,7 +113,3 @@ dist: dist
 # Metadata
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
-
-# Signing (optional)
-signs:
-  - artifacts: checksum
