@@ -13,6 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Command execution variable for dependency injection in tests
+var execCommand = exec.CommandContext
+
 var rootCmd = &cobra.Command{
 	Use:           "topic-urls",
 	Short:         "GitHub Topic Urls",
@@ -88,11 +91,11 @@ func parseRepoFromURL(remoteURL string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)
-}
+	return "", fmt.Errorf("unsupported remote URL format: %s", remoteURL)}
+
 
 func getCurrentRepo(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	cmd := execCommand(ctx, "git", "remote", "get-url", "origin")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get remote URL: %w", err)
@@ -103,16 +106,13 @@ func getCurrentRepo(ctx context.Context) (string, error) {
 }
 
 func getCurrentBranch(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "branch", "--show-current")
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	cmd := execCommand(ctx, "git", "branch", "--show-current")
+	output, err := cmd.Output()
+	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	branch := strings.TrimSpace(output.String())
+	branch := strings.TrimSpace(string(output))
 	if branch == "" {
 		return "", fmt.Errorf("could not determine current branch")
 	}
@@ -121,7 +121,7 @@ func getCurrentBranch(ctx context.Context) (string, error) {
 }
 
 func branchExists(ctx context.Context, branchName string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branchName))
+	cmd := execCommand(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branchName))
 	cmd.Stderr = nil // Suppress error output for cleaner check
 
 	err := cmd.Run()
@@ -130,7 +130,7 @@ func branchExists(ctx context.Context, branchName string) (bool, error) {
 	}
 
 	// Check if it's a remote branch
-	cmd = exec.CommandContext(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/remotes/origin/%s", branchName))
+	cmd = execCommand(ctx, "git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/remotes/origin/%s", branchName))
 	cmd.Stderr = nil
 
 	err = cmd.Run()
