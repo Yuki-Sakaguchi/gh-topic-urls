@@ -183,6 +183,24 @@ func normalizeBranchName(line string) string {
 	return strings.TrimSpace(line)
 }
 
+// selectBranchInteractively presents an interactive branch selection UI
+func selectBranchInteractively(branches []string) (string, error) {
+	prompt := promptui.Select{
+		Label: "Select branch",
+		Items: branches,
+		Size:  10, // Show up to 10 items at once
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ . }}:",
+			Active:   "▸ {{ . | cyan | bold }}",
+			Inactive: "  {{ . | faint }}",
+			Selected: "✓ {{ . | green | bold }}",
+		},
+	}
+
+	_, selectedBranch, err := prompt.Run()
+	return selectedBranch, err
+}
+
 // selectBranchForTopicUrls handles branch selection logic
 func selectBranchForTopicUrls(ctx context.Context, args []string, interactive bool) (string, error) {
 	if interactive {
@@ -195,12 +213,7 @@ func selectBranchForTopicUrls(ctx context.Context, args []string, interactive bo
 			return "", fmt.Errorf("no branches found")
 		}
 
-		prompt := promptui.Select{
-			Label: "Select branch",
-			Items: branches,
-		}
-
-		_, selectedBranch, err := prompt.Run()
+		selectedBranch, err := selectBranchInteractively(branches)
 		if err != nil {
 			return "", fmt.Errorf("branch selection cancelled: %w", err)
 		}
