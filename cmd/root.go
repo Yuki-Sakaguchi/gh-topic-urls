@@ -144,34 +144,42 @@ func getAllBranches(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("failed to get branches: %w", err)
 	}
 
-	branches := []string{}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	branches := make([]string, 0, len(lines))
 
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		branch := normalizeBranchName(line)
+		if branch != "" {
+			branches = append(branches, branch)
 		}
-
-		// Remove current branch indicator (*)
-		if strings.HasPrefix(line, "* ") {
-			line = line[2:]
-		}
-
-		// Remove origin/ prefix from remote branches
-		if strings.HasPrefix(line, "origin/") {
-			line = line[7:] // len("origin/") = 7
-		}
-
-		// Skip HEAD pointer references
-		if strings.Contains(line, "HEAD ->") {
-			continue
-		}
-
-		branches = append(branches, line)
 	}
 
 	return branches, nil
+}
+
+// normalizeBranchName cleans and normalizes a git branch line
+func normalizeBranchName(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+
+	// Skip HEAD pointer references
+	if strings.Contains(line, "HEAD ->") {
+		return ""
+	}
+
+	// Remove current branch indicator (*)
+	if strings.HasPrefix(line, "* ") {
+		line = line[2:]
+	}
+
+	// Remove origin/ prefix from remote branches
+	if strings.HasPrefix(line, "origin/") {
+		line = line[7:] // len("origin/") = 7
+	}
+
+	return strings.TrimSpace(line)
 }
 
 func getTopicUrls(ctx context.Context, branchName string) error {
