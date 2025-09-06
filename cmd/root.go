@@ -137,6 +137,43 @@ func branchExists(ctx context.Context, branchName string) (bool, error) {
 	return err == nil, nil
 }
 
+func getAllBranches(ctx context.Context) ([]string, error) {
+	cmd := execCommand(ctx, "git", "branch", "-a", "--sort=-committerdate")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get branches: %w", err)
+	}
+
+	branches := []string{}
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Remove current branch indicator (*)
+		if strings.HasPrefix(line, "* ") {
+			line = line[2:]
+		}
+
+		// Remove origin/ prefix from remote branches
+		if strings.HasPrefix(line, "origin/") {
+			line = line[7:] // len("origin/") = 7
+		}
+
+		// Skip HEAD pointer references
+		if strings.Contains(line, "HEAD ->") {
+			continue
+		}
+
+		branches = append(branches, line)
+	}
+
+	return branches, nil
+}
+
 func getTopicUrls(ctx context.Context, branchName string) error {
 	repo, err := getCurrentRepo(ctx)
 	if err != nil {
