@@ -273,3 +273,66 @@ func TestBranchExists(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAllBranches(t *testing.T) {
+	tests := []struct {
+		name        string
+		mockOutput  string
+		mockError   error
+		expected    []string
+		expectError bool
+	}{
+		{
+			name: "Multiple branches with origin prefix",
+			mockOutput: `  main
+  feature/test-feature
+  origin/develop
+  origin/feature/remote-only`,
+			expected: []string{"main", "feature/test-feature", "develop", "feature/remote-only"},
+		},
+		{
+			name:       "Single branch",
+			mockOutput: `  main`,
+			expected:   []string{"main"},
+		},
+		{
+			name: "Mixed local and remote branches",
+			mockOutput: `  main
+  develop
+  origin/feature/branch1
+  origin/hotfix/urgent-fix`,
+			expected: []string{"main", "develop", "feature/branch1", "hotfix/urgent-fix"},
+		},
+		{
+			name:        "Git command error",
+			mockError:   fmt.Errorf("git command failed"),
+			expectError: true,
+		},
+		{
+			name:       "Empty output",
+			mockOutput: "",
+			expected:   []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange: Setup mock command execution
+			execCommand = mockExecCommand(tt.mockOutput, tt.mockError)
+			defer func() { execCommand = originalExecCommand }()
+
+			// Act: Execute getAllBranches (this function doesn't exist yet - TDD Red phase)
+			ctx := context.Background()
+			result, err := getAllBranches(ctx)
+
+			// Assert: Verify results
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
