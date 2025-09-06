@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -402,6 +403,81 @@ func TestSelectBranchForTopicUrls(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestBranchCompletion(t *testing.T) {
+	tests := []struct {
+		name               string
+		args               []string
+		toComplete         string
+		mockBranchesOutput string
+		mockBranchesError  error
+		expectedBranches   []string
+		expectError        bool
+	}{
+		{
+			name:       "Complete all branches with empty input",
+			args:       []string{},
+			toComplete: "",
+			mockBranchesOutput: `  main
+  feature/test-branch
+  origin/develop`,
+			expectedBranches: []string{"main", "feature/test-branch", "develop"},
+		},
+		{
+			name:       "Complete branches starting with 'ma'",
+			args:       []string{},
+			toComplete: "ma",
+			mockBranchesOutput: `  main
+  feature/test-branch
+  origin/develop`,
+			expectedBranches: []string{"main"},
+		},
+		{
+			name:       "Complete branches starting with 'feature/'",
+			args:       []string{},
+			toComplete: "feature/",
+			mockBranchesOutput: `  main
+  feature/test-branch
+  feature/another-branch
+  origin/develop`,
+			expectedBranches: []string{"feature/test-branch", "feature/another-branch"},
+		},
+		{
+			name:             "No completion for second argument",
+			args:             []string{"main"},
+			toComplete:       "something",
+			expectedBranches: nil,
+		},
+		{
+			name:              "Handle git command error",
+			args:              []string{},
+			toComplete:        "",
+			mockBranchesError: fmt.Errorf("git command failed"),
+			expectError:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup: Mock execCommand
+			originalExecCommand := execCommand
+			execCommand = mockExecCommand(tt.mockBranchesOutput, tt.mockBranchesError)
+			defer func() { execCommand = originalExecCommand }()
+
+			// Act: Call branchCompletion
+			branches, directive := branchCompletion(nil, tt.args, tt.toComplete)
+
+			// Assert: Verify results
+			if tt.expectError {
+				assert.Equal(t, cobra.ShellCompDirectiveError, directive)
+				assert.Nil(t, branches)
+			} else {
+				assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+				assert.Equal(t, tt.expectedBranches, branches)
 			}
 		})
 	}

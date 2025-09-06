@@ -69,35 +69,22 @@ gh topic-urls feature/new-feature
 gh topic-urls -i
 ```
 
-## Shell Auto-completion Setup
+## Shell Auto-completion
 
-Enable tab completion for branch names:
+**✨ No setup required!** When installed as a GitHub CLI extension, tab completion for branch names works automatically.
 
-### Bash
+Just type `gh topic-urls <TAB>` and see available branches:
+
 ```bash
-# Add to ~/.bashrc
-eval "$(gh topic-urls completion bash)"
-
-# Or generate completion script
-gh topic-urls completion bash > /usr/local/share/bash-completion/completions/gh-topic-urls
+$ gh topic-urls <TAB>
+main                    feature/awesome-feature
+develop                 hotfix/urgent-bug
 ```
 
-### Zsh
-```bash
-# Add to ~/.zshrc
-eval "$(gh topic-urls completion zsh)"
-
-# Or for oh-my-zsh
-gh topic-urls completion zsh > "${fpath[1]}/_gh-topic-urls"
-```
-
-### Fish
-```bash
-gh topic-urls completion fish | source
-
-# Or save to file
-gh topic-urls completion fish > ~/.config/fish/completions/gh-topic-urls.fish
-```
+The completion system provides:
+- **Fuzzy matching** - Type partial branch names to filter results
+- **Local and remote branches** - See all available branches from your repository
+- **Recent branches first** - Branches are sorted by most recent activity
 
 ### How it works
 

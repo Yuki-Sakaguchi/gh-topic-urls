@@ -241,6 +241,11 @@ func selectBranchForTopicUrls(ctx context.Context, args []string, interactive bo
 
 // branchCompletion provides branch name completions for shell auto-completion
 func branchCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Only provide completion for the first argument (branch name)
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -249,7 +254,15 @@ func branchCompletion(cmd *cobra.Command, args []string, toComplete string) ([]s
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	return branches, cobra.ShellCompDirectiveNoFileComp
+	// Filter branches based on what the user has typed so far
+	var filteredBranches []string
+	for _, branch := range branches {
+		if strings.HasPrefix(branch, toComplete) {
+			filteredBranches = append(filteredBranches, branch)
+		}
+	}
+
+	return filteredBranches, cobra.ShellCompDirectiveNoFileComp
 }
 
 func getTopicUrls(ctx context.Context, branchName string) error {
