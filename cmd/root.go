@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
 // Command execution variable for dependency injection in tests
 var execCommand = exec.CommandContext
+
+var interactiveMode bool
 
 var rootCmd = &cobra.Command{
 	Use:           "topic-urls",
@@ -24,30 +27,28 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 }
 
+func init() {
+	rootCmd.Flags().BoolVarP(&interactiveMode, "interactive", "i", false, "Interactive branch selection")
+}
+
 func runTopicUrls(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var branchName string
-	if len(args) < 1 {
-		currentBranch, err := getCurrentBranch(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get current branch: %w\nUsage: gh-topic-urls [branch-name]", err)
+	branchName, err := selectBranchForTopicUrls(ctx, args, interactiveMode)
+	if err != nil {
+		if interactiveMode {
+			return fmt.Errorf("branch selection failed: %w", err)
 		}
-		branchName = currentBranch
+		return fmt.Errorf("failed to get branch: %w\nUsage: gh-topic-urls [branch-name] or gh-topic-urls -i", err)
+	}
+
+	if interactiveMode {
+		fmt.Printf("Selected branch: %s\n", branchName)
+	} else if len(args) < 1 {
 		fmt.Printf("Using current branch: %s\n", branchName)
 	} else {
-		branchName = args[0]
 		fmt.Printf("Target branch: %s\n", branchName)
-
-		// Check if specified branch exists
-		exists, err := branchExists(ctx, branchName)
-		if err != nil {
-			return fmt.Errorf("failed to check branch existence: %w", err)
-		}
-		if !exists {
-			return fmt.Errorf("branch '%s' does not exist", branchName)
-		}
 	}
 
 	if err := getTopicUrls(ctx, branchName); err != nil {
@@ -180,6 +181,48 @@ func normalizeBranchName(line string) string {
 	}
 
 	return strings.TrimSpace(line)
+}
+
+// selectBranchForTopicUrls handles branch selection logic
+func selectBranchForTopicUrls(ctx context.Context, args []string, interactive bool) (string, error) {
+	if interactive {
+		branches, err := getAllBranches(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		if len(branches) == 0 {
+			return "", fmt.Errorf("no branches found")
+		}
+
+		prompt := promptui.Select{
+			Label: "Select branch",
+			Items: branches,
+		}
+
+		_, selectedBranch, err := prompt.Run()
+		if err != nil {
+			return "", fmt.Errorf("branch selection cancelled: %w", err)
+		}
+
+		return selectedBranch, nil
+	}
+
+	// Non-interactive mode
+	if len(args) < 1 {
+		return getCurrentBranch(ctx)
+	}
+
+	branchName := args[0]
+	exists, err := branchExists(ctx, branchName)
+	if err != nil {
+		return "", fmt.Errorf("failed to check branch existence: %w", err)
+	}
+	if !exists {
+		return "", fmt.Errorf("branch '%s' does not exist", branchName)
+	}
+
+	return branchName, nil
 }
 
 func getTopicUrls(ctx context.Context, branchName string) error {
