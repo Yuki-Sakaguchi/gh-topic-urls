@@ -9,6 +9,8 @@ A CLI tool to fetch GitHub Pull Request URLs for a specific branch and copy them
 
 - **Dynamic repository detection** - Automatically detects the current Git repository
 - **Smart branch handling** - Uses current branch when no argument is provided
+- **Interactive branch selection** - Select branches with an intuitive UI using `--interactive` flag
+- **Shell auto-completion** - Tab completion for branch names in bash/zsh/fish
 - **Branch validation** - Verifies branch existence before processing
 - **User-friendly error messages** - Clear English error messages
 - **Conditional clipboard copy** - Only copies to clipboard when PRs are found
@@ -45,6 +47,10 @@ gh topic-urls
 
 # Specify a branch
 gh topic-urls <branch-name>
+
+# Interactive branch selection
+gh topic-urls --interactive
+gh topic-urls -i
 ```
 
 ### Examples
@@ -58,6 +64,39 @@ gh topic-urls main
 
 # Fetch PRs for a feature branch
 gh topic-urls feature/new-feature
+
+# Interactive branch selection (NEW!)
+gh topic-urls -i
+```
+
+## Shell Auto-completion Setup
+
+Enable tab completion for branch names:
+
+### Bash
+```bash
+# Add to ~/.bashrc
+eval "$(gh topic-urls completion bash)"
+
+# Or generate completion script
+gh topic-urls completion bash > /usr/local/share/bash-completion/completions/gh-topic-urls
+```
+
+### Zsh
+```bash
+# Add to ~/.zshrc
+eval "$(gh topic-urls completion zsh)"
+
+# Or for oh-my-zsh
+gh topic-urls completion zsh > "${fpath[1]}/_gh-topic-urls"
+```
+
+### Fish
+```bash
+gh topic-urls completion fish | source
+
+# Or save to file
+gh topic-urls completion fish > ~/.config/fish/completions/gh-topic-urls.fish
 ```
 
 ### How it works
