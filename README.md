@@ -9,6 +9,8 @@ A CLI tool to fetch GitHub Pull Request URLs for a specific branch and copy them
 
 - **Dynamic repository detection** - Automatically detects the current Git repository
 - **Smart branch handling** - Uses current branch when no argument is provided
+- **Interactive branch selection** - Select branches with an intuitive UI using `--interactive` flag
+- **Shell auto-completion** - Tab completion for branch names in bash/zsh/fish
 - **Branch validation** - Verifies branch existence before processing
 - **User-friendly error messages** - Clear English error messages
 - **Conditional clipboard copy** - Only copies to clipboard when PRs are found
@@ -45,6 +47,10 @@ gh topic-urls
 
 # Specify a branch
 gh topic-urls <branch-name>
+
+# Interactive branch selection
+gh topic-urls --interactive
+gh topic-urls -i
 ```
 
 ### Examples
@@ -58,7 +64,27 @@ gh topic-urls main
 
 # Fetch PRs for a feature branch
 gh topic-urls feature/new-feature
+
+# Interactive branch selection (NEW!)
+gh topic-urls -i
 ```
+
+## Shell Auto-completion
+
+**✨ No setup required!** When installed as a GitHub CLI extension, tab completion for branch names works automatically.
+
+Just type `gh topic-urls <TAB>` and see available branches:
+
+```bash
+$ gh topic-urls <TAB>
+main                    feature/awesome-feature
+develop                 hotfix/urgent-bug
+```
+
+The completion system provides:
+- **Fuzzy matching** - Type partial branch names to filter results
+- **Local and remote branches** - See all available branches from your repository
+- **Recent branches first** - Branches are sorted by most recent activity
 
 ### How it works
 
