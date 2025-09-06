@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-09-06
+
+### Added
+- Interactive branch selection with `--interactive` flag using promptui
+- Shell auto-completion for branch names in bash/zsh/fish
+- Branch listing functionality with `getAllBranches()` function
+- Integration with GitHub CLI extension completion system
+- Zero-setup shell completion (automatic when installed as GitHub CLI extension)
+- Comprehensive test suite with unit and integration tests
+- Branch name normalization and filtering logic
+
+### Changed
+- Optimized shell completion for GitHub CLI extensions
+- Updated README with interactive selection and auto-completion documentation
+- Enhanced error handling for git command failures
+- Improved user experience with interactive prompts
+
+### Technical
+- Added `github.com/manifoldco/promptui v0.9.0` dependency
+- Implemented TDD approach with proper test coverage
+- Added comprehensive integration tests for branch selection functionality
+
 ## [1.0.0] - 2025-08-30
 
 ### Added
