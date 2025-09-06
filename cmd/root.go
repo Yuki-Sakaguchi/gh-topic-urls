@@ -20,11 +20,12 @@ var execCommand = exec.CommandContext
 var interactiveMode bool
 
 var rootCmd = &cobra.Command{
-	Use:           "topic-urls",
-	Short:         "GitHub Topic Urls",
-	RunE:          runTopicUrls,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:               "topic-urls",
+	Short:             "GitHub Topic Urls",
+	RunE:              runTopicUrls,
+	SilenceUsage:      true,
+	SilenceErrors:     true,
+	ValidArgsFunction: branchCompletion,
 }
 
 func init() {
@@ -236,6 +237,19 @@ func selectBranchForTopicUrls(ctx context.Context, args []string, interactive bo
 	}
 
 	return branchName, nil
+}
+
+// branchCompletion provides branch name completions for shell auto-completion
+func branchCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	branches, err := getAllBranches(ctx)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	return branches, cobra.ShellCompDirectiveNoFileComp
 }
 
 func getTopicUrls(ctx context.Context, branchName string) error {
