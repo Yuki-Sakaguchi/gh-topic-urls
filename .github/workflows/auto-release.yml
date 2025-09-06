@@ -76,16 +76,9 @@ jobs:
           
       - name: Generate CHANGELOG
         run: |
-          # Create or update CHANGELOG.md
-          if [ ! -f CHANGELOG.md ]; then
-            echo "# Changelog" > CHANGELOG.md
-            echo "" >> CHANGELOG.md
-            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
-            echo "" >> CHANGELOG.md
-          fi
-          
-          # Generate changelog for this release
-          conventional-changelog -p conventionalcommits -r 0 -s
+          # Skip automatic changelog generation since we manually maintain CHANGELOG.md
+          echo "Using manually maintained CHANGELOG.md"
+          echo "Skipping automatic changelog generation for this release"
           
       - name: Commit version and changelog updates
         run: |
