@@ -336,3 +336,66 @@ func TestGetAllBranches(t *testing.T) {
 		})
 	}
 }
+
+func TestRunTopicUrlsWithInteractiveFlag(t *testing.T) {
+	tests := []struct {
+		name               string
+		args               []string
+		interactiveMode    bool
+		mockBranchesOutput string
+		mockBranchesError  error
+		selectedBranch     string
+		expectError        bool
+	}{
+		{
+			name:               "Interactive mode with branches available",
+			args:               []string{},
+			interactiveMode:    true,
+			mockBranchesOutput: "main\nfeature/test\ndevelop",
+			selectedBranch:     "feature/test",
+		},
+		{
+			name:            "Interactive mode with no branches",
+			args:            []string{},
+			interactiveMode: true,
+			mockBranchesOutput: "",
+			expectError:     true,
+		},
+		{
+			name:              "Interactive mode with git error",
+			args:              []string{},
+			interactiveMode:   true,
+			mockBranchesError: fmt.Errorf("git command failed"),
+			expectError:       true,
+		},
+		{
+			name:               "Non-interactive mode should work normally",
+			args:               []string{"main"},
+			interactiveMode:    false,
+			mockBranchesOutput: "main\nfeature/test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This test will fail because selectBranchForTopicUrls doesn't exist yet (TDD Red)
+			// We're testing the integration between the --interactive flag and branch selection
+			
+			// Setup: Mock execCommand for getAllBranches and other git commands
+			originalExecCommand := execCommand
+			execCommand = mockExecCommand(tt.mockBranchesOutput, tt.mockBranchesError)
+			defer func() { execCommand = originalExecCommand }()
+
+			// Act: This would call the function that uses --interactive flag
+			// (Function doesn't exist yet - this is the failing test phase)
+			_, err := selectBranchForTopicUrls(context.Background(), tt.args, tt.interactiveMode)
+
+			// Assert: Verify behavior
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
