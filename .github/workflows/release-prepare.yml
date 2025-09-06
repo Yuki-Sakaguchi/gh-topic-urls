@@ -143,9 +143,16 @@ jobs:
           
       - name: Create release PR
         if: steps.check_changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW_VERSION="${{ steps.next_version.outputs.version }}"
           BUMP_TYPE="${{ steps.next_version.outputs.bump_type }}"
+          
+          # Ensure release/next branch exists and is up to date
+          git checkout release/next || git checkout -b release/next
+          git reset --hard main
+          git push origin release/next --force-with-lease || git push -u origin release/next
           
           # Create PR body
           PR_BODY="$(cat <<EOF
@@ -173,14 +180,12 @@ jobs:
           EOF
           )"
           
-          # Create the PR
+          # Create the PR (without labels that may not exist)
           gh pr create \
             --title "Release v${NEW_VERSION}" \
             --body "$PR_BODY" \
             --base main \
-            --head release/next \
-            --label "release" \
-            --label "ready-for-review"
+            --head release/next
             
       - name: Skip release (no changes)
         if: steps.check_changes.outputs.has_changes == 'false'
